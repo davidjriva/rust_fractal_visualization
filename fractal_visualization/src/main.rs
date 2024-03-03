@@ -2,9 +2,9 @@ use image::{Rgba, RgbaImage};
 use minifb::{Key, Window, WindowOptions};
 use std::time::{Instant};
 
-// Based on naive algorithm: https://en.wikipedia.org/wiki/Plotting_algorithms_for_the_Mandelbrot_set
+// Based on optimized algorithm: https://en.wikipedia.org/wiki/Plotting_algorithms_for_the_Mandelbrot_set
 fn generate_mandelbrot_set_naive(x_pixel_upper_bound: usize, y_pixel_upper_bound: usize) -> RgbaImage{
-    let max_iterations = 1000;
+    const MAX_ITERATIONS: u16 = 1000;
 
     let mut imgbuf = RgbaImage::new(x_pixel_upper_bound as u32, y_pixel_upper_bound as u32);
 
@@ -15,12 +15,16 @@ fn generate_mandelbrot_set_naive(x_pixel_upper_bound: usize, y_pixel_upper_bound
 
             let mut x = 0.0;
             let mut y = 0.0;
+            let mut x_squared = 0.0;
+            let mut y_squared = 0.0;
 
             let mut iteration = 0;
-            while x*x + y*y <= 2.0*2.0  && iteration < max_iterations {
-                let x_temp = x*x - y*y + x_0;
+
+            while x_squared + y_squared <= 4.0  && iteration < MAX_ITERATIONS {
                 y = 2.0*x*y + y_0;
-                x = x_temp;
+                x = x_squared - y_squared + x_0;
+                x_squared = x*x;
+                y_squared = y*y;
                 iteration += 1;
             }
 
@@ -28,16 +32,15 @@ fn generate_mandelbrot_set_naive(x_pixel_upper_bound: usize, y_pixel_upper_bound
             let color_intensity = (iteration as f64).powf(1.5);
             let color = Rgba([0, color_intensity as u8, 0, 255]);
 
-            // Set the pixel color in the image buffer (using grayscale)
             imgbuf.put_pixel(pixel_x as u32, pixel_y as u32, color);
         }
     }
 
-    return imgbuf;
+    imgbuf
 }
 
 fn scale_coordinate(pixel_coordinate: usize, image_dimension: usize, min_val: f64, max_val: f64) -> f64 {
-    return (pixel_coordinate as f64 / image_dimension as f64) * (max_val - min_val) + min_val;
+    (pixel_coordinate as f64 / image_dimension as f64) * (max_val - min_val) + min_val
 }
 
 fn main() {
