@@ -36,23 +36,24 @@ fn generate_mandelbrot_set_naive() -> RgbaImage{
 }
 
 // Colors from https://stackoverflow.com/questions/16500656/which-color-gradient-is-used-to-color-mandelbrot-in-wikipedia
+// Despite using RGBA, the Window appears to read in as BGR, so I had to reverse the colors here.
 static COLOR_MAPPING: [Rgba<u8>; 16] = [
-    Rgba([66, 30, 15, 255]),
-    Rgba([25, 7, 26, 255]),
-    Rgba([9, 1, 47, 255]),
-    Rgba([4, 4, 73, 255]),
-    Rgba([0, 7, 100, 255]),
-    Rgba([12, 44, 138, 255]),
-    Rgba([24, 82, 177, 255]),
-    Rgba([57, 125, 209, 255]),
-    Rgba([134, 181, 229, 255]),
-    Rgba([211, 236, 248, 255]),
-    Rgba([241, 233, 191, 255]),
-    Rgba([248, 201, 95, 255]),
-    Rgba([255, 170, 0, 255]),
-    Rgba([204, 128, 0, 255]),
-    Rgba([153, 87, 0, 255]),
-    Rgba([106, 52, 3, 255]),
+    Rgba([15, 30, 66, 255]),
+    Rgba([26, 7, 25, 255]),
+    Rgba([47, 1, 9, 255]),
+    Rgba([73, 4, 4, 255]),
+    Rgba([100, 7, 0, 255]),
+    Rgba([138, 44, 12, 255]),
+    Rgba([177, 82, 24, 255]),
+    Rgba([209, 125, 57, 255]),
+    Rgba([229, 181, 134, 255]),
+    Rgba([248, 236, 211, 255]),
+    Rgba([191, 233, 241, 255]),
+    Rgba([95, 201, 248, 255]),
+    Rgba([0, 170, 255, 255]),
+    Rgba([0, 128, 204, 255]),
+    Rgba([0, 87, 153, 255]),
+    Rgba([3, 52, 106, 255]),
 ];
 fn map_iteration_to_color(n: usize) -> Rgba<u8> {
     return if (n < MAX_ITERATIONS && n > 0) {
