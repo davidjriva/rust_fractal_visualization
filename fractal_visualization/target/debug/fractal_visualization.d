@@ -1,1 +1,1 @@
-/Users/davidriva/RustroverProjects/rust_fractal_visualization/fractal_visualization/target/debug/fractal_visualization: /Users/davidriva/RustroverProjects/rust_fractal_visualization/fractal_visualization/src/main.rs
+/Users/davidriva/RustroverProjects/rust_fractal_visualization/fractal_visualization/target/debug/fractal_visualization: /Users/davidriva/RustroverProjects/rust_fractal_visualization/fractal_visualization/src/main.rs /Users/davidriva/RustroverProjects/rust_fractal_visualization/fractal_visualization/src/palettes.rs

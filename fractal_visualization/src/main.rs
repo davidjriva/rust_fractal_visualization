@@ -1,3 +1,5 @@
+mod palettes;
+
 use image::{Rgba, RgbaImage};
 use minifb::{Key, Window, WindowOptions};
 use std::time::{Instant};
@@ -9,121 +11,126 @@ static MAX_ITERATIONS: usize = 1000;
 
 // Based on optimized algorithm: https://en.wikipedia.org/wiki/Plotting_algorithms_for_the_Mandelbrot_set
 // Coloring based on sources from the same link ^^^
-fn generate_mandelbrot_set_naive() -> RgbaImage{
+fn generate_mandelbrot_set() -> RgbaImage{
+    let imgbuf = RgbaImage::new(WIDTH as u32, HEIGHT as u32);
+
+    // Use continuous coloring function to fill in mandelbrot set
+    color_mandelbrot_set(imgbuf)
+}
+
+fn generate_mandelbrot_set_basic() -> RgbaImage {
     let mut imgbuf = RgbaImage::new(WIDTH as u32, HEIGHT as u32);
-    // let mut iterations = vec![vec![0; WIDTH]; HEIGHT];
 
-    for pixel_x in 0..WIDTH {
-        for pixel_y in 0..HEIGHT {
-            // Calculate num iterations for convergence and store (Pass 1)
-            let iteration = calculate_num_iterations(pixel_x, pixel_y);
+    for x in 0..WIDTH{
+        for y in 0..HEIGHT {
+            let x_scaled = scale_coordinate(x, WIDTH, -2.0, 0.47);
+            let y_scaled = scale_coordinate(y, HEIGHT, -1.12, 1.12);
 
+            let c = Point { x: x_scaled, y: y_scaled };
+            let (iter_ct, _, _) = compute_escape_time(c, Point{ x: 0.0, y: 0.0});
 
-            // Determine color based on # of iterations to converge
-            let color = map_iteration_to_color(iteration);
-            imgbuf.put_pixel(pixel_x as u32, pixel_y as u32, color);
+            let color = map_iteration_to_color_basic(iter_ct);
+            imgbuf.put_pixel(x as u32, y as u32, color);
         }
     }
-
-    // Accumulate the number of iterations per pixel x (flattens columns)
-    // let num_iterations_per_pixel = second_pass(iterations.clone());
-    // // Aggregate total iterations performed
-    // let total = third_pass(&num_iterations_per_pixel);
-    // // Determine the hue for each pixel (x,y) and use that for coloring
-    // let _pass_4_results = fourth_pass(&iterations, &num_iterations_per_pixel, total);
 
     imgbuf
 }
 
-// Colors from https://stackoverflow.com/questions/16500656/which-color-gradient-is-used-to-color-mandelbrot-in-wikipedia
-// Despite using RGBA, the Window appears to read in as BGR, so I had to reverse the colors here.
-static COLOR_MAPPING: [Rgba<u8>; 16] = [
-    Rgba([15, 30, 66, 255]),
-    Rgba([26, 7, 25, 255]),
-    Rgba([47, 1, 9, 255]),
-    Rgba([73, 4, 4, 255]),
-    Rgba([100, 7, 0, 255]),
-    Rgba([138, 44, 12, 255]),
-    Rgba([177, 82, 24, 255]),
-    Rgba([209, 125, 57, 255]),
-    Rgba([229, 181, 134, 255]),
-    Rgba([248, 236, 211, 255]),
-    Rgba([191, 233, 241, 255]),
-    Rgba([95, 201, 248, 255]),
-    Rgba([0, 170, 255, 255]),
-    Rgba([0, 128, 204, 255]),
-    Rgba([0, 87, 153, 255]),
-    Rgba([3, 52, 106, 255]),
-];
-fn map_iteration_to_color(n: usize) -> Rgba<u8> {
-    return if (n < MAX_ITERATIONS && n > 0) {
-        let idx = n % COLOR_MAPPING.len();
-        COLOR_MAPPING[idx]
+/*
+    Utilizes a continuous coloring algorithm to color pixels of mandelbrot set based on a certain palette
+ */
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+fn color_mandelbrot_set(mut imgbuf: RgbaImage) -> RgbaImage {
+    let reciprocal_of_ln_two = 1.0 / (2.0f64).ln();
+    let mult = (0.5f64).ln() * reciprocal_of_ln_two;
+
+    for y in 0..HEIGHT {
+        for x in 0..WIDTH {
+            let x_scaled = scale_coordinate(x, WIDTH, -2.0, 0.47);
+            let y_scaled = scale_coordinate(y, HEIGHT, -1.12, 1.12);
+
+            let c = Point { x: x_scaled, y: y_scaled };
+            let (iter_ct, _, z) = compute_escape_time(c, Point{ x: 0.0, y: 0.0});
+
+            let mut color = Rgba([0,0,0,255]);
+            if iter_ct < MAX_ITERATIONS{
+                color = interpolate_color(reciprocal_of_ln_two, mult, iter_ct, z);
+            }
+
+            imgbuf.put_pixel(x as u32, y as u32, color);
+        }
+    }
+
+    imgbuf
+}
+
+/*
+    Interpolates colors resulting in a smooth, aesthetically pleasing image.
+    Algorithm based on: https://www.fractalforums.com/programming/newbie-how-to-map-colors-in-the-mandelbrot-set/msg3478/#msg3478
+    and
+    smoothing: https://en.wikipedia.org/wiki/Plotting_algorithms_for_the_Mandelbrot_set
+ */
+fn interpolate_color(reciprocal_of_ln_two: f64, mult: f64, iter_ct: usize, z: Point) -> Rgba<u8> {
+    let iter_frac = 5.0 + iter_ct as f64 - ((z.x + z.y).ln().ln() * reciprocal_of_ln_two) - mult;
+    let iter_floor = iter_frac.floor() as usize;
+    let iter_percent = iter_frac - iter_floor as f64;
+
+    let start_color = palettes::BLUE_YELLOW_PALETTE[iter_floor % palettes::BLUE_YELLOW_PALETTE.len()];
+    let end_color = palettes::BLUE_YELLOW_PALETTE[(iter_floor + 1) % palettes::BLUE_YELLOW_PALETTE.len()];
+
+    calculate_color(start_color, end_color, iter_percent)
+}
+
+fn calculate_color(start_color: Rgba<u8>, end_color: Rgba<u8>, iter_p: f64) -> Rgba<u8> {
+    let red = (end_color[0] as f64 - start_color[0] as f64) * iter_p + start_color[0] as f64;
+    let green = (end_color[1] as f64 - start_color[1] as f64) * iter_p + start_color[1] as f64;
+    let blue = (end_color[2] as f64 - start_color[2] as f64) * iter_p + start_color[2] as f64;
+
+    Rgba([red.floor() as u8, green.floor() as u8, blue.floor() as u8, 255])
+}
+
+/*
+    For a point c=(x, y) this algorithm determines the number of iterations it takes for a breakout to occur
+ */
+fn compute_escape_time(c: Point, mut z: Point) -> (usize, Point, Point) {
+    let mut x = 0.0;
+    let mut y = 0.0;
+
+    let mut iteration = 0;
+
+    while z.x + z.y <= 4.0  && iteration < MAX_ITERATIONS {
+        y = 2.0*x*y + c.y;
+        x = z.x - z.y + c.x;
+        z.x = x*x;
+        z.y = y*y;
+        iteration += 1;
+    }
+
+    (iteration, c, z)
+}
+
+/*
+    Takes in an integer n representing the number of iterations to escape in the mandelbrot set.
+    The algorithm then uses modulo to determine the proper color for that pixel.
+    This algorithm performs faster than the interpolation based coloring, however, the image is far less beautiful.
+ */
+fn map_iteration_to_color_basic(n: usize) -> Rgba<u8> {
+    return if n < MAX_ITERATIONS && n > 0 {
+        let idx = n % palettes::BLUE_YELLOW_PALETTE.len();
+        palettes::BLUE_YELLOW_PALETTE[idx]
     }else{
         Rgba([0,0,0,255])
     }
 }
 
-fn second_pass(iterations: Vec<Vec<usize>>) -> Vec<usize> {
-    let mut num_iterations_per_pixel = vec![0; MAX_ITERATIONS];
-
-    for pixel_x in 0..HEIGHT {
-        for pixel_y in 0..WIDTH {
-            let idx = iterations[pixel_x][pixel_y];
-            num_iterations_per_pixel[idx] += 1;
-        }
-    }
-
-    num_iterations_per_pixel
-}
-
-fn third_pass(num_iterations_per_pixel: &Vec<usize>) -> usize {
-    let mut total = 0;
-
-    for item in num_iterations_per_pixel {
-        total += item;
-    }
-
-    total
-}
-
-fn fourth_pass(iterations: &Vec<Vec<usize>>, num_iterations_per_pixel: &Vec<usize>, total: usize) {
-    let mut hue = vec![vec![0; WIDTH]; HEIGHT];
-
-    for x in 0..HEIGHT{
-        for y in 0..WIDTH{
-            let iteration = iterations[x][y];
-            for i in 0..=iteration{
-                hue[x][y] += num_iterations_per_pixel[i] / total;
-            }
-        }
-    }
-
-    // The computed value is used as an index to a color palette
-}
-
-fn calculate_num_iterations(x: usize, y: usize) -> usize {
-    let x_0 = scale_coordinate(x, WIDTH, -2.0, 0.47);
-    let y_0 = scale_coordinate(y, HEIGHT, -1.12, 1.12);
-
-    let mut x = 0.0;
-    let mut y = 0.0;
-    let mut x_squared = 0.0;
-    let mut y_squared = 0.0;
-
-    let mut iteration = 0;
-
-    while x_squared + y_squared <= 4.0  && iteration < MAX_ITERATIONS {
-        y = 2.0*x*y + y_0;
-        x = x_squared - y_squared + x_0;
-        x_squared = x*x;
-        y_squared = y*y;
-        iteration += 1;
-    }
-
-    iteration
-}
-
+/*
+    Scales coordinates to the appropriate range for the Mandelbrot set
+ */
 fn scale_coordinate(pixel_coordinate: usize, image_dimension: usize, min_val: f64, max_val: f64) -> f64 {
     (pixel_coordinate as f64 / image_dimension as f64) * (max_val - min_val) + min_val
 }
@@ -133,7 +140,7 @@ fn main() {
     let y_pixel_upper_bound = 800;
 
     let start_time = Instant::now();
-    let mandelbrot_image = generate_mandelbrot_set_naive();
+    let mandelbrot_image = generate_mandelbrot_set();
     let end_time = Instant::now();
 
     // Calculate elapsed time
