@@ -1,3 +1,4 @@
+
 use minifb::{Key, Window, WindowOptions};
 
 pub struct Gui {
